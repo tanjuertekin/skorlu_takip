@@ -109,13 +109,14 @@ async function taramaYap(tf) {
         
         let res = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
         let data = await res.json();
+        
         if (!Array.isArray(data)) {
             addLog(tf, "Hata: Binance verisi alınamadı.");
             return;
         }
 
         let topParities = data.filter(i => i.symbol.endsWith('USDT'))
-            .sort((a,b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume)).slice(0, 35);
+            .sort((a,b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume)).slice(0, 30);
 
         let anlikFiyatlarMap = {};
         data.forEach(p => anlikFiyatlarMap[p.symbol + '.P'] = parseFloat(p.lastPrice || p.price));
@@ -126,7 +127,7 @@ async function taramaYap(tf) {
             let symbol = item.symbol;
             let kRes = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${tf}&limit=50`);
             let klines = await kRes.json();
-            if (!Array.isArray(klines) || klines.length < 35) continue;
+            if (!Array.isArray(klines) || klines.length < 30) continue;
 
             let closes = klines.map(k => parseFloat(k[4]));
             let highs = klines.map(k => parseFloat(k[2]));
@@ -141,7 +142,8 @@ async function taramaYap(tf) {
             let emaDeger = ema21[i] || guncelFiyat;
 
             let yon = guncelFiyat >= emaDeger ? "LONG" : "SHORT";
-            let skor = Math.floor(Math.random() * 45) + 50; // Bilgisayarınızdaki kararlı skor yapısı
+            let skor = Math.floor(Math.abs(guncelFiyat - emaDeger) / emaDeger * 1000) + 55;
+            if (skor > 98) skor = 95;
 
             let pariteAdi = symbol + '.P';
             let anlikFiyat = anlikFiyatlarMap[pariteAdi] || guncelFiyat;
@@ -161,9 +163,8 @@ async function taramaYap(tf) {
         state.lastScanTime = new Date().toLocaleTimeString('tr-TR');
         addLog(tf, `Tarama bitti. Bulunan sinyal: ${yeniSonuclar.length}`);
 
-        // İşlem açma eşiği (%80 ve üzeri varsayılan otomatik işlem)
         yeniSonuclar.forEach(item => {
-            if (item.skor >= 80 && !state.acikIslemler.some(i => i.parite === item.parite)) {
+            if (item.skor >= 50 && !state.acikIslemler.some(i => i.parite === item.parite)) {
                 state.acikIslemler.push({
                     id: Date.now() + Math.random(),
                     parite: item.parite,
@@ -206,21 +207,8 @@ async function fiyatlariTakipEt(tf) {
                 : ((item.giris - guncel) / item.giris) * 100;
             item.pnlYuzde = parseFloat(hamPnl.toFixed(2));
 
-            // TSL / Stop kontrolü
-            if (item.yon === "LONG") {
-                if (guncel > item.enYuksekFiyat) {
-                    item.enYuksekFiyat = guncel;
-                    let yeniStop = item.enYuksekFiyat * (1 - (item.tslYuzde / 100));
-                    if (yeniStop > item.stop) item.stop = parseFloat(yeniStop.toFixed(4));
-                }
-                if (guncel <= item.stop) islemKapatArkaPlanda(tf, i, item.stop, "STOP HIT");
-            } else {
-                if (guncel < item.enYuksekFiyat) {
-                    item.enYuksekFiyat = guncel;
-                    let yeniStop = item.enYuksekFiyat * (1 + (item.tslYuzde / 100));
-                    if (yeniStop < item.stop) item.stop = parseFloat(yeniStop.toFixed(4));
-                }
-                if (guncel >= item.stop) islemKapatArkaPlanda(tf, i, item.stop, "STOP HIT");
+            if ((item.yon === "LONG" && guncel <= item.stop) || (item.yon === "SHORT" && guncel >= item.stop)) {
+                islemKapatArkaPlanda(tf, i, item.stop, "STOP HIT");
             }
         }
     } catch (e) {}
@@ -238,7 +226,6 @@ function islemKapatArkaPlanda(tf, index, cikisFiyati, sonuc) {
     addLog(tf, `[KAPANDI] ${item.parite} -> %${net.toFixed(2)}`);
 }
 
-// Butona basıldığında tetiklenecek manuel tarama endpoint'i
 app.get('/api/scan/:tf', async (req, res) => {
     let tf = req.params.tf;
     if (botStates[tf]) {
