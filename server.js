@@ -213,14 +213,12 @@ function safAlgoritmaAnalizi(klines) {
 async function arkaPlanTaramasiYap(tf) {
     let state = botStates[tf];
     try {
-        addLog(tf, "Arka plan strateji taraması başlatıldı (Futures FAPI)...");
+        addLog(tf, "Arka plan strateji taraması başlatıldı (Spot API Güvenceli)...");
         
-        let res = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr', {
-            headers: { 'User-Agent': 'Mozilla/5.0' }
-        });
+        let res = await fetch('https://api.binance.com/api/v3/ticker/24hr');
         let data = await res.json();
         if (!Array.isArray(data)) {
-            addLog(tf, "Hata: FAPI 24hr verisi alınamadı.");
+            addLog(tf, "Hata: Spot 24hr verisi alınamadı.");
             return;
         }
 
@@ -233,9 +231,7 @@ async function arkaPlanTaramasiYap(tf) {
         for (let parite of aktifPariteler) {
             let temizParite = parite.replace('.P', '');
             try {
-                let kRes = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${temizParite}&interval=${tf}&limit=100`, {
-                    headers: { 'User-Agent': 'Mozilla/5.0' }
-                });
+                let kRes = await fetch(`https://api.binance.com/api/v3/klines?symbol=${temizParite}&interval=${tf}&limit=100`);
                 let klines = await kRes.json();
                 if (!Array.isArray(klines) || klines.length < 50) continue;
 
@@ -261,9 +257,7 @@ async function acikIslemleriTakipEt(tf) {
     let state = botStates[tf];
     if (state.acikIslemler.length === 0) return;
     try {
-        let res = await fetch('https://fapi.binance.com/fapi/v1/ticker/price', {
-            headers: { 'User-Agent': 'Mozilla/5.0' }
-        });
+        let res = await fetch('https://api.binance.com/api/v3/ticker/price');
         let fiyatlar = await res.json();
         let fiyatMap = {};
         fiyatlar.forEach(f => { fiyatMap[f.symbol + '.P'] = parseFloat(f.price); });
@@ -374,5 +368,5 @@ setInterval(() => {
 }, 3 * 60 * 1000);
 
 app.listen(PORT, () => {
-    console.log(`Sunucu ${PORT} portunda FAPI Destekli Başlatıldı.`);
+    console.log(`Sunucu ${PORT} portunda Spot API Güvenceli Başlatıldı.`);
 });
