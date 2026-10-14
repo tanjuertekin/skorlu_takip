@@ -136,14 +136,22 @@ async function arkaPlanTaramasiYap(tf) {
     try {
         addLog(tf, "Arka plan taraması başlatıldı...");
         
-        // Render üzerinde engellenen spot API yerine doğrudan Futures 24hr kullanıyoruz
         let res = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
-        let data = await res.json();
+        let textData = await res.text();
         
+        let data;
+        try {
+            data = JSON.parse(textData);
+        } catch (err) {
+            data = null;
+        }
+
         if (!Array.isArray(data)) {
             addLog(tf, "Hata: Binance verisi dizi formatında alınamadı.");
             return;
         }
+        
+        // Devamındaki filtreleme ve tarama kodları...
 
         let top50 = data.filter(i => i.symbol.endsWith('USDT') && !i.symbol.includes('USDC'))
             .sort((a,b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume)).slice(0, 50);
