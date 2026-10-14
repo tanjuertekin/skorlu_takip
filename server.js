@@ -195,28 +195,14 @@ function safAlgoritmaAnalizi(klines) {
 async function taramaYap(tf) {
     try {
         let state = botStates[tf];
-        addLog(tf, "Arka plan taraması başlatıldı...");
+        addLog(tf, "Arka plan taraması başlatıldı (Vadeli)...");
         
-        let res = await fetch('https://api.binance.com/api/v3/ticker/24hr');
-        let data;
-        try {
-            data = await res.json();
-        } catch (err) {
-            data = null;
-        }
-
-        // Eğer Spot API dizi dönmediyse Futures (fapi) yedek adresini dene
+        // Doğrudan Binance Futures (Vadeli) 24hr verisini çekiyoruz
+        let res = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
+        let data = await res.json();
+        
         if (!Array.isArray(data)) {
-            let resFapi = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
-            try {
-                data = await resFapi.json();
-            } catch (err) {
-                data = [];
-            }
-        }
-
-        if (!Array.isArray(data)) {
-            addLog(tf, "Hata: Binance verisi alınamadı (API engeli veya bağlantı).");
+            addLog(tf, "Hata: Vadeli 24hr verisi dizi formatında gelmedi.");
             return;
         }
 
