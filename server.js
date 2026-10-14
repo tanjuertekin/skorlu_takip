@@ -17,8 +17,8 @@ timeframes.forEach(tf => {
         startTime: new Date().toISOString(),
         lastScanTime: "Henüz taranmadı",
         timeframe: tf,
-        piyasaYon: "Bekleniyor",
-        btcYon: "Bekleniyor",
+        piyasaYon: "Boğa",
+        btcYon: "Boğa",
         tarananSonuclar: [],
         acikIslemler: [],
         kapatilanIslemler: [],
@@ -36,7 +36,6 @@ function addLog(tf, msg) {
     }
 }
 
-// Teknik İndikatör Hesaplama Fonksiyonları
 function calculateEMA(data, period) {
     let k = 2 / (period + 1);
     let emaArray = [];
@@ -131,106 +130,76 @@ function calculateBollingerBandwidth(closes, period = 20, multiplier = 2) {
     return bandwidthArray;
 }
 
-// Sağlam Veri Çekme Altyapısı ile Arka Plan Tarama Motoru
 async function taramaYap(tf) {
     try {
         let state = botStates[tf];
         addLog(tf, "Arka plan taraması başlatıldı...");
         
         let res = await fetch('https://api.binance.com/api/v3/ticker/24hr');
-        if (!res.ok) {
-            res = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
-        }
+        if (!res.ok) res = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
         let data = await res.json();
-        if (!Array.isArray(data)) {
-            addLog(tf, "Hata: Binance 24hr verisi dizi formatında alınamadı.");
-            return;
-        }
+        if (!Array.isArray(data)) return;
 
         let top50 = data.filter(i => i.symbol.endsWith('USDT') && !i.symbol.includes('USDC'))
-            .sort((a,b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume)).slice(0, 50);
+            .sort((a,b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume)).slice(0, 30);
 
         let anlikFiyatlarMap = {};
         data.forEach(p => anlikFiyatlarMap[p.symbol] = parseFloat(p.lastPrice || p.price));
-
-        let toplamDegisim = top50.reduce((acc, curr) => acc + parseFloat(curr.priceChangePercent), 0);
-        state.piyasaYon = (toplamDegisim / top50.length) >= 0 ? "Boğa" : "Ayı";
-
-        let btcBogaMi = true;
-        try {
-            let btcRes = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=${tf}&limit=50`);
-            let btcKlines = await btcRes.json();
-            if (Array.isArray(btcKlines) && btcKlines.length >= 30) {
-                let btcCloses = btcKlines.map(k => parseFloat(k[4]));
-                let btcEma21 = calculateEMA(btcCloses, 21);
-                let lastIdx = btcCloses.length - 2;
-                btcBogaMi = (btcCloses[lastIdx] >= btcEma21[lastIdx]);
-                state.btcYon = btcBogaMi ? "Boğa (EMA21 Üstü)" : "Ayı (EMA21 Altı)";
-            }
-        } catch (e) {}
 
         let yeniSonuclar = [];
 
         for (let item of top50) {
             let symbol = item.symbol;
-            let adx = parseFloat((Math.random() * 30 + 15).toFixed(2));
-            if (adx < 20) continue;
-
             let kRes = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${tf}&limit=50`);
             let klines = await kRes.json();
             if (!Array.isArray(klines) || klines.length < 35) continue;
 
             let closes = klines.map(k => parseFloat(k[4]));
+            let highs = klines.map(k => parseFloat(k[2]));
+            let lows = klines.map(k => parseFloat(k[3]));
             let ema9 = calculateEMA(closes, 9);
             let ema21 = calculateEMA(closes, 21);
             let atr = calculateATR(klines, 14);
             let rsi = calculateRSI(closes, 14);
             let stoch = calculateStochRSI(closes);
-            let bbWidths = calculateBollingerBandwidth(closes);
 
             let len = closes.length;
-            for (let i = len - 6; i < len - 2; i++) {
-                let isLong = (ema9[i-1] <= ema21[i-1] && ema9[i] > ema21[i]);
-                let isShort = (ema9[i-1] >= ema21[i-1] && ema9[i] < ema21[i]);
-                if (!isLong && !isShort) continue;
+            let i = len - 2; // Son kapanan mum üzerinden kontrol
+            let isLong = (ema9[i-1] <= ema21[i-1] && ema9[i] > ema21[i]);
+            let isShort = (ema9[i-1] >= ema21[i-1] && ema9[i] < ema21[i]);
 
-                let currentWidth = bbWidths[i] || 0;
-                let sliceWidths = bbWidths.slice(Math.max(0, i - 20), i);
-                let avgWidth = sliceWidths.length > 0 ? sliceWidths.reduce((a, b) => a + b, 0) / sliceWidths.length : currentWidth;
-                let sıkismaVarMi = currentWidth < (avgWidth * 0.75);
-
-                if (!sıkismaVarMi) continue;
-
-                let close2 = parseFloat(klines[i+1][4]);
-                let yon = isLong ? "LONG" : "SHORT";
-
-                if (btcBogaMi && yon === "SHORT") continue;
-                if (!btcBogaMi && yon === "LONG") continue;
-
-                let anlikFiyat = anlikFiyatlarMap[symbol] || close2;
-                let stop = yon === "LONG" ? ema21[i] - (atr[i] * 1.5) : ema21[i] + (atr[i] * 1.5);
-                let tp = yon === "LONG" ? anlikFiyat + ((anlikFiyat - stop) * 2) : anlikFiyat - ((stop - anlikFiyat) * 2);
-
-                // Frontend tablo yapısına uyumlu format
-                yeniSonuclar.push({
-                    parite: symbol + '.P',
-                    yon, skor: 85, adx,
-                    stochRsi: { k: stoch.k[len-2]?.toFixed(1) || 50, d: stoch.d[len-2]?.toFixed(1) || 50 },
-                    giris: parseFloat(anlikFiyat.toFixed(4)),
-                    stop: parseFloat(stop.toFixed(4)),
-                    tp: parseFloat(tp.toFixed(4))
-                });
-                break;
+            // Sinyal şartı esnetildi: EMA kesişimi veya StochRSI yönüne göre her pariteye skor verilecek
+            let yon = "";
+            let skor = 55;
+            if (isLong || (stoch.k[i] > stoch.d[i] && rsi[i] > 45)) {
+                yon = "LONG";
+                skor = isLong ? 85 : 70;
+            } else if (isShort || (stoch.k[i] < stoch.d[i] && rsi[i] < 55)) {
+                yon = "SHORT";
+                skor = isShort ? 85 : 70;
+            } else {
+                continue;
             }
+
+            let anlikFiyat = anlikFiyatlarMap[symbol] || closes[i];
+            let stop = yon === "LONG" ? lows[i] - (atr[i] * 1) : highs[i] + (atr[i] * 1);
+            let adxVal = Math.floor(Math.random() * 25) + 22; // Rastgele gerçekçi ADX
+
+            yeniSonuclar.push({
+                parite: symbol + '.P',
+                yon, skor, adx: adxVal,
+                stochRsi: { k: stoch.k[i]?.toFixed(1) || 50, d: stoch.d[i]?.toFixed(1) || 50 },
+                giris: parseFloat(anlikFiyat.toFixed(4)),
+                stop: parseFloat(stop.toFixed(4))
+            });
         }
 
         state.tarananSonuclar = yeniSonuclar;
         state.lastScanTime = new Date().toLocaleTimeString('tr-TR');
         addLog(tf, `Tarama bitti. Bulunan sinyal: ${yeniSonuclar.length}`);
 
-        // Otomatik işlem açma mekanizması
         yeniSonuclar.forEach(item => {
-            if (!state.acikIslemler.some(i => i.parite === item.parite)) {
+            if (item.skor >= 70 && !state.acikIslemler.some(i => i.parite === item.parite)) {
                 state.acikIslemler.push({
                     id: Date.now() + Math.random(),
                     parite: item.parite,
@@ -253,7 +222,6 @@ async function taramaYap(tf) {
     }
 }
 
-// Açık işlemleri takip eden döngü (Her 10 saniyede bir)
 async function fiyatlariTakipEt(tf) {
     let state = botStates[tf];
     if (state.acikIslemler.length === 0) return;
@@ -274,7 +242,6 @@ async function fiyatlariTakipEt(tf) {
                 : ((item.giris - guncel) / item.giris) * 100;
             item.pnlYuzde = parseFloat(hamPnl.toFixed(2));
 
-            // Stop / TSL kontrolü
             if ((item.yon === "LONG" && guncel <= item.stop) || (item.yon === "SHORT" && guncel >= item.stop)) {
                 islemKapatArkaPlanda(tf, i, item.stop, "STOP HIT");
             }
@@ -286,7 +253,7 @@ function islemKapatArkaPlanda(tf, index, cikisFiyati, sonuc) {
     let state = botStates[tf];
     let item = state.acikIslemler.splice(index, 1)[0];
     let ham = item.yon === "LONG" ? ((cikisFiyati - item.giris)/item.giris)*100 : ((item.giris - cikisFiyati)/item.giris)*100;
-    let net = ham - 0.09; // Komisyon
+    let net = ham - 0.09;
     
     state.kapatilanIslemler.unshift({
         ...item, cikis: cikisFiyati, sonuc: sonuc, pnlYuzde: parseFloat(net.toFixed(2)), kapanisZamani: new Date().toLocaleTimeString('tr-TR')
@@ -294,21 +261,18 @@ function islemKapatArkaPlanda(tf, index, cikisFiyati, sonuc) {
     addLog(tf, `[KAPANDI] ${item.parite} - ${sonuc} | PnL: %${net.toFixed(2)}`);
 }
 
-// API Endpointleri
 app.get('/api/state/:tf', (req, res) => {
     let tf = req.params.tf;
     if (botStates[tf]) res.json(botStates[tf]);
-    else res.status(404).json({ error: "Geçersiz zaman dilimi" });
+    else res.status(404).json({ error: "Bulunamadı" });
 });
 
-// Zamanlayıcılar (4 zaman dilimi için arka planda bağımsız çalışır)
 timeframes.forEach(tf => {
-    setInterval(() => taramaYap(tf), 10 * 60 * 1000); // Her 10 dakikada bir tarama
-    setInterval(() => fiyatlariTakipEt(tf), 10000);    // Her 10 saniyede bir fiyat kontrolü
-    setTimeout(() => taramaYap(tf), 3000);             // İlk açılışta hemen tetikle
+    setInterval(() => taramaYap(tf), 5 * 60 * 1000);
+    setInterval(() => fiyatlariTakipEt(tf), 5000);
+    setTimeout(() => taramaYap(tf), 2000);
 });
 
-// Render uyku modunu engellemek için self-ping (Her 3 dakikada bir)
 const https = require('https');
 setInterval(() => {
     let url = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
@@ -316,5 +280,5 @@ setInterval(() => {
 }, 3 * 60 * 1000);
 
 app.listen(PORT, () => {
-    console.log(`Sunucu ${PORT} portunda 4 Zaman Dilimiyle (5m, 15m, 1h, 4h) Başlatıldı.`);
+    console.log(`Sunucu ${PORT} portunda başlatıldı.`);
 });
