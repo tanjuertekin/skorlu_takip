@@ -35,7 +35,6 @@ function addLog(tf, msg) {
     }
 }
 
-// Orijinal Teknik İndikatör Hesaplamaları
 function hesaplaRSIArray(closes, period = 14) {
     let rsiArray = [];
     let gains = 0, losses = 0;
@@ -211,29 +210,32 @@ function safAlgoritmaAnalizi(klines) {
     };
 }
 
-// Orijinal Tarama Motoru (Spot Klines Güvenceli)
 async function arkaPlanTaramasiYap(tf) {
     let state = botStates[tf];
     try {
-        addLog(tf, "Arka plan strateji taraması başlatıldı...");
+        addLog(tf, "Arka plan strateji taraması başlatıldı (Futures FAPI)...");
         
-        let res = await fetch('https://api.binance.com/api/v3/ticker/24hr');
+        let res = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr', {
+            headers: { 'User-Agent': 'Mozilla/5.0' }
+        });
         let data = await res.json();
         if (!Array.isArray(data)) {
-            addLog(tf, "Hata: 24hr verisi alınamadı.");
+            addLog(tf, "Hata: FAPI 24hr verisi alınamadı.");
             return;
         }
 
         let aktifPariteler = data.filter(item => item.symbol.endsWith('USDT') && !item.symbol.includes('USDC'))
                                    .sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume))
-                                   .slice(0, 25).map(item => item.symbol + '.P');
+                                   .slice(0, 30).map(item => item.symbol + '.P');
 
         let hamSinyaller = [];
 
         for (let parite of aktifPariteler) {
             let temizParite = parite.replace('.P', '');
             try {
-                let kRes = await fetch(`https://api.binance.com/api/v3/klines?symbol=${temizParite}&interval=${tf}&limit=100`);
+                let kRes = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${temizParite}&interval=${tf}&limit=100`, {
+                    headers: { 'User-Agent': 'Mozilla/5.0' }
+                });
                 let klines = await kRes.json();
                 if (!Array.isArray(klines) || klines.length < 50) continue;
 
@@ -243,29 +245,6 @@ async function arkaPlanTaramasiYap(tf) {
                 hamSinyaller.push({ parite, ...sonuc });
             } catch (e) {}
             await new Promise(resolve => setTimeout(resolve, 150));
-        }
-
-        // Piyasa Yön Filtresi (%70 kuralı)
-        if (hamSinyaller.length > 0) {
-            let toplam = hamSinyaller.length;
-            let longSayisi = hamSinyaller.filter(s => s.yon === "LONG").length;
-            let shortSayisi = hamSinyaller.filter(s => s.yon === "SHORT").length;
-            
-            let longOran = longSayisi / toplam;
-            let shortOran = shortSayisi / toplam;
-            let izinVerilenYon = null;
-
-            if (longOran >= 0.70) {
-                izinVerilenYon = "LONG";
-                addLog(tf, `[Piyasa Filtresi] Sinyallerin %${Math.round(longOran * 100)}'i LONG. Zıt SHORT'lar filtrelendi.`);
-            } else if (shortOran >= 0.70) {
-                izinVerilenYon = "SHORT";
-                addLog(tf, `[Piyasa Filtresi] Sinyallerin %${Math.round(shortOran * 100)}'i SHORT. Zıt LONG'lar filtrelendi.`);
-            }
-
-            if (izinVerilenYon) {
-                hamSinyaller = hamSinyaller.filter(s => s.yon === izinVerilenYon);
-            }
         }
 
         hamSinyaller.sort((a, b) => b.skor - a.skor);
@@ -278,12 +257,13 @@ async function arkaPlanTaramasiYap(tf) {
     }
 }
 
-// Fiyat Takip ve TSL Motoru
 async function acikIslemleriTakipEt(tf) {
     let state = botStates[tf];
     if (state.acikIslemler.length === 0) return;
     try {
-        let res = await fetch('https://api.binance.com/api/v3/ticker/price');
+        let res = await fetch('https://fapi.binance.com/fapi/v1/ticker/price', {
+            headers: { 'User-Agent': 'Mozilla/5.0' }
+        });
         let fiyatlar = await res.json();
         let fiyatMap = {};
         fiyatlar.forEach(f => { fiyatMap[f.symbol + '.P'] = parseFloat(f.price); });
@@ -344,7 +324,7 @@ function islemKapatArkaPlanda(tf, islem, sonucTipi, cikisFiyati) {
         ? ((cikisFiyati - islem.giris) / islem.giris) * 100 
         : ((islem.giris - cikisFiyati) / islem.giris) * 100;
     
-    let netPnlYuzde = hamPnl - 0.10; // Taker Komisyonu (%0.10)
+    let netPnlYuzde = hamPnl - 0.10;
     let gecenSureMs = Date.now() - (islem.acilisZamaniMs || Date.now());
 
     state.kapatilanIslemler.unshift({
@@ -361,7 +341,6 @@ function islemKapatArkaPlanda(tf, islem, sonucTipi, cikisFiyati) {
     addLog(tf, `[Kapandı] ${islem.parite} -> ${sonucTipi} | Net PnL: %${netPnlYuzde.toFixed(2)}`);
 }
 
-// API Endpointleri
 app.get('/api/state/:tf', (req, res) => {
     let tf = req.params.tf;
     if (botStates[tf]) res.json(botStates[tf]);
@@ -383,13 +362,11 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Zamanlayıcılar (Her zaman dilimi için ayrı bağımsız döngü)
 timeframes.forEach(tf => {
     setInterval(() => arkaPlanTaramasiYap(tf), 15 * 60 * 1000);
     setInterval(() => acikIslemleriTakipEt(tf), 10000);
 });
 
-// Render uyku modunu önleme
 const https = require('https');
 setInterval(() => {
     let url = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
@@ -397,5 +374,5 @@ setInterval(() => {
 }, 3 * 60 * 1000);
 
 app.listen(PORT, () => {
-    console.log(`Sunucu ${PORT} portunda Orijinal Strateji ile Başlatıldı.`);
+    console.log(`Sunucu ${PORT} portunda FAPI Destekli Başlatıldı.`);
 });
