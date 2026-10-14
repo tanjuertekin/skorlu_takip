@@ -5,34 +5,132 @@
     <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
     <title>Kripto Canlı İşlem Simülasyon Paneli</title>
     <style>
-        body { background-color: #121212; color: #e0e0e0; font-family: Arial, sans-serif; margin: 0; padding: 20px; }
-        .container { max-width: 1450px; margin: 0 auto; background: #1e1e1e; padding: 20px; border-radius: 8px; box-shadow: 0 4px 10px rgba(0,0,0,0.5); }
-        h2 { color: #00ffcc; text-align: center; font-size: 20px; }
-        .stats-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 15px; margin-bottom: 20px; }
-        .stat-card { background: #252525; padding: 15px; border-radius: 6px; text-align: center; border-left: 4px solid #00ffcc; }
-        .stat-title { font-size: 12px; color: #888; text-transform: uppercase; font-weight: bold; }
-        .stat-value { font-size: 20px; font-weight: bold; color: #fff; margin-top: 5px; }
-        .control-panel { background: #2a2a2a; padding: 15px; margin-bottom: 20px; border-radius: 6px; display: flex; flex-wrap: wrap; gap: 15px; align-items: flex-end; }
-        .control-group { display: flex; flex-direction: column; gap: 5px; flex: 1; min-width: 140px; }
-        .button-group { flex: 2; min-width: 220px; }
-        label { font-size: 13px; color: #00ffcc; font-weight: bold; }
-        select, button { background: #181818; color: #fff; border: 1px solid #444; padding: 10px; border-radius: 4px; font-size: 14px; width: 100%; box-sizing: border-box; }
-        button { background: #00ffcc; color: #121212; font-weight: bold; cursor: pointer; border: none; height: 41px; }
+        body {
+            background-color: #121212;
+            color: #e0e0e0;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1450px;
+            margin: 0 auto;
+            background: #1e1e1e;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+        h2 { 
+            color: #00ffcc; 
+            text-align: center; 
+            font-size: 20px;
+            margin-bottom: 20px;
+        }
+        .stats-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: #252525;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+            border-left: 4px solid #00ffcc;
+        }
+        .stat-title { font-size: 11px; color: #888; text-transform: uppercase; font-weight: bold; }
+        .stat-value { font-size: 18px; font-weight: bold; color: #fff; margin-top: 5px; }
+
+        .control-panel {
+            background: #2a2a2a;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 6px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: flex-end;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            flex: 1;
+            min-width: 140px;
+        }
+        .button-group { flex: 1.5; min-width: 200px; }
+        label { font-size: 12px; color: #00ffcc; font-weight: bold; }
+        select, button {
+            background: #181818;
+            color: #fff;
+            border: 1px solid #444;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 13px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        select { cursor: pointer; }
+        button {
+            background: #00ffcc;
+            color: #121212;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            height: 41px;
+            font-size: 14px;
+        }
         button:hover { background: #00b38f; }
-        .section-title { display: flex; justify-content: space-between; align-items: center; margin-top: 25px; margin-bottom: 10px; border-bottom: 2px solid #333; padding-bottom: 8px; }
-        .section-title h3 { margin: 0; color: #00ffcc; font-size: 16px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 5px; background: #181818; border-radius: 6px; overflow: hidden; }
-        th, td { padding: 10px; text-align: center; border-bottom: 1px solid #333; font-size: 13px; }
+        
+        .section-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 25px;
+            margin-bottom: 10px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 8px;
+        }
+        .section-title h3 { margin: 0; color: #00ffcc; font-size: 15px; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 5px;
+            background: #181818;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        th, td {
+            padding: 10px;
+            text-align: center;
+            border-bottom: 1px solid #333;
+            font-size: 13px;
+        }
         th { background-color: #252525; color: #00ffcc; font-weight: bold; }
+        tr:hover { background-color: #222; }
+        
         .badge-long { color: #00ff00; font-weight: bold; background: rgba(0,255,0,0.1); padding: 3px 6px; border-radius: 4px; }
         .badge-short { color: #ff4444; font-weight: bold; background: rgba(255,68,68,0.1); padding: 3px 6px; border-radius: 4px; }
-        .log-box { white-space: pre-wrap; background: #181818; padding: 15px; border-radius: 4px; border-left: 4px solid #00ffcc; margin-top: 15px; font-size: 12px; max-height: 120px; overflow-y: auto; color: #aaa; }
+        .log-box {
+            white-space: pre-wrap;
+            background: #181818;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 4px solid #00ffcc;
+            margin-top: 15px;
+            font-size: 12px;
+            max-height: 120px;
+            overflow-y: auto;
+            color: #aaa;
+        }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <h2>Kripto Canlı İşlem Simülasyon Paneli (<span id="tfBaslik">5m</span>)</h2>
+    <h2>Kripto Canlı İşlem Simülasyon Paneli</h2>
 
     <div class="stats-container">
         <div class="stat-card">
@@ -44,7 +142,7 @@
             <div class="stat-value" id="statKapatilanSayisi">0</div>
         </div>
         <div class="stat-card">
-            <div class="stat-title">Toplam Başarı / PnL</div>
+            <div class="stat-title">Toplam Başarı / PnL (Komisyon Düşüldü)</div>
             <div class="stat-value" id="statToplamPnl">%0.00</div>
         </div>
         <div class="stat-card">
@@ -53,35 +151,61 @@
         </div>
     </div>
     
+    <!-- Orijinal Kontrol Paneli Düzeni -->
     <div class="control-panel">
         <div class="control-group">
             <label>Zaman Dilimi (TF):</label>
             <select id="timeframeSelect" onchange="zamanDilimiDegistir()">
-                <option value="5m" selected>5 Dakika (5m)</option>
+                <option value="5m">5 Dakika (5m)</option>
                 <option value="15m">15 Dakika (15m)</option>
-                <option value="1h">1 Saat (1h)</option>
+                <option value="1h" selected>1 Saat (1h)</option>
                 <option value="4h">4 Saat (4h)</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label>Tarama Aralığı:</label>
+            <select id="intervalSelect">
+                <option value="5" selected>5 Dakika (Otomatik)</option>
+                <option value="15">15 Dakika</option>
             </select>
         </div>
 
         <div class="control-group">
             <label>Minimum Skor (Liste):</label>
             <select id="minScoreSelect" onchange="verileriCek()">
+                <option value="20">%20 ve Üzeri</option>
                 <option value="50" selected>%50 ve Üzeri</option>
-                <option value="70">%70 ve Üzeri</option>
-                <option value="85">%85 ve Üzeri</option>
+                <option value="80">%80 ve Üzeri</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label>İşlem Açma Eşiği:</label>
+            <select id="execScoreSelect">
+                <option value="60">%60 ve Üzeri</option>
+                <option value="80" selected>%80 ve Üzeri</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label>TSL Uzaklığı:</label>
+            <select id="tslDistanceSelect">
+                <option value="1.0">%1.0</option>
+                <option value="1.5" selected>%1.5</option>
+                <option value="2.0">%2.0</option>
             </select>
         </div>
 
         <div class="control-group button-group">
             <label>&nbsp;</label>
-            <button onclick="verileriCek()">Sunucudan Verileri Yenile</button>
+            <button onclick="verileriCek()">Tara ve Canlı İşlemlere Aktar</button>
         </div>
     </div>
 
     <div class="section-title">
-        <h3>Güncel Sinyal Taraması</h3>
-        <span id="sonGuncelleme" style="font-size: 13px; color: #888;">Son Güncelleme: Bekleniyor...</span>
+        <h3 id="tabloBaslik">Güncel Sinyal Taraması (Seçilen Skor Dilimine Göre)</h3>
+        <span id="sonGuncelleme" style="font-size: 12px; color: #888;">Son Güncelleme: Bekleniyor...</span>
     </div>
     <table>
         <thead>
@@ -93,14 +217,17 @@
                 <th>StochRSI</th>
                 <th>Giriş</th>
                 <th>Stop</th>
+                <th>Durum / İşlem</th>
             </tr>
         </thead>
         <tbody id="tableBody">
-            <tr><td colspan="7" style="color: #888;">Yükleniyor...</td></tr>
+            <tr><td colspan="8" style="color: #888;">Yükleniyor...</td></tr>
         </tbody>
     </table>
 
-    <div class="section-title"><h3>Canlı Takip Edilen Açık İşlemler (TSL Takipli)</h3></div>
+    <div class="section-title">
+        <h3>Canlı Takip Edilen Açık İşlemler (TSL Takipli)</h3>
+    </div>
     <table>
         <thead>
             <tr>
@@ -118,7 +245,9 @@
         </tbody>
     </table>
 
-    <div class="section-title"><h3>Kapatılan İşlemler Geçmişi</h3></div>
+    <div class="section-title">
+        <h3>Kapatılan İşlemler Geçmişi</h3>
+    </div>
     <table>
         <thead>
             <tr>
@@ -137,17 +266,16 @@
     </table>
 
     <div class="card" style="margin-top: 20px;">
-        <h3 style="color: #00ffcc; font-size: 15px; margin-bottom: 8px;">Sistem Logları</h3>
+        <h3 style="color: #00ffcc; font-size: 14px; margin-bottom: 8px;">Sistem Logları</h3>
         <div id="logBox" class="log-box">Sunucu bağlantısı bekleniyor...</div>
     </div>
 </div>
 
 <script>
-    let aktifTf = "5m";
+    let aktifTf = "1h";
 
     function zamanDilimiDegistir() {
         aktifTf = document.getElementById("timeframeSelect").value;
-        document.getElementById("tfBaslik").innerText = aktifTf;
         verileriCek();
     }
 
@@ -171,10 +299,12 @@
 
             let taramaHTML = "";
             if (filtrelenmisSonuclar.length === 0) {
-                taramaHTML = `<tr><td colspan="7" style="color: #888;">Seçilen skor sınırında sinyal bulunamadı.</td></tr>`;
+                taramaHTML = `<tr><td colspan="8" style="color: #888;">Seçilen skor sınırında (%${minSkor}) sinyal bulunamadı.</td></tr>`;
             } else {
                 filtrelenmisSonuclar.forEach(s => {
                     let badge = s.yon === "LONG" ? "badge-long" : "badge-short";
+                    let islemdeMi = data.acikIslemler.some(i => i.parite === s.parite);
+                    let durumMetin = islemdeMi ? '<span style="color:#00ffcc">İşlemde</span>' : '<span style="color:#888">Bekliyor</span>';
                     taramaHTML += `<tr>
                         <td><b>${s.parite}</b></td>
                         <td><span class="${badge}">${s.yon}</span></td>
@@ -183,6 +313,7 @@
                         <td>K:${s.stochRsi.k} D:${s.stochRsi.d}</td>
                         <td>${s.giris}</td>
                         <td style="color: #ff4444;">${s.stop}</td>
+                        <td>${durumMetin}</td>
                     </tr>`;
                 });
             }
