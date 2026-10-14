@@ -130,13 +130,14 @@ function calculateBollingerBandwidth(closes, period = 20, multiplier = 2) {
     return bandwidthArray;
 }
 
-// Otomatik Arka Plan Tarama Motoru (Render Uyumlu - Doğrudan Fapi)
 async function arkaPlanTaramasiYap(tf) {
     let state = botStates[tf];
     try {
         addLog(tf, "Arka plan taraması başlatıldı...");
         
-        let res = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
+        let res = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr', {
+            headers: { 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36' }
+        });
         let textData = await res.text();
         
         let data;
@@ -150,8 +151,6 @@ async function arkaPlanTaramasiYap(tf) {
             addLog(tf, "Hata: Binance verisi dizi formatında alınamadı.");
             return;
         }
-        
-        // Devamındaki filtreleme ve tarama kodları...
 
         let top50 = data.filter(i => i.symbol.endsWith('USDT') && !i.symbol.includes('USDC'))
             .sort((a,b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume)).slice(0, 50);
@@ -165,7 +164,9 @@ async function arkaPlanTaramasiYap(tf) {
 
         let btcBogaMi = true;
         try {
-            let btcRes = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=${tf}&limit=50`);
+            let btcRes = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=${tf}&limit=50`, {
+                headers: { 'User-Agent': 'Mozilla/5.0' }
+            });
             let btcKlines = await btcRes.json();
             if (Array.isArray(btcKlines) && btcKlines.length >= 30) {
                 let btcCloses = btcKlines.map(k => parseFloat(k[4]));
@@ -183,7 +184,9 @@ async function arkaPlanTaramasiYap(tf) {
             let adx = parseFloat((Math.random() * 30 + 15).toFixed(2));
             if (adx < 20) continue;
 
-            let kRes = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${tf}&limit=50`);
+            let kRes = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${tf}&limit=50`, {
+                headers: { 'User-Agent': 'Mozilla/5.0' }
+            });
             let klines = await kRes.json();
             if (!Array.isArray(klines) || klines.length < 35) continue;
 
@@ -257,7 +260,9 @@ async function acikIslemleriTakipEt(tf) {
     let state = botStates[tf];
     if (state.acikIslemler.length === 0) return;
     try {
-        let res = await fetch('https://fapi.binance.com/fapi/v1/ticker/price');
+        let res = await fetch('https://fapi.binance.com/fapi/v1/ticker/price', {
+            headers: { 'User-Agent': 'Mozilla/5.0' }
+        });
         let prices = await res.json();
         let pMap = {};
         prices.forEach(p => pMap[p.symbol + '.P'] = parseFloat(p.price));
@@ -292,7 +297,6 @@ function islemKapatArkaPlanda(tf, index, cikisFiyati, sonuc) {
     addLog(tf, `[KAPANDI] ${item.parite} - ${sonuc} | PnL: %${net.toFixed(2)}`);
 }
 
-// Butondan tetiklenecek manuel tarama endpoint'i
 app.get('/api/scan/:tf', async (req, res) => {
     let tf = req.params.tf;
     if (botStates[tf]) {
@@ -314,14 +318,12 @@ app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 
-// Zamanlayıcılar (4 zaman dilimi için bağımsız çalışır)
 timeframes.forEach(tf => {
     setInterval(() => arkaPlanTaramasiYap(tf), 10 * 60 * 1000);
     setInterval(() => acikIslemleriTakipEt(tf), 10000);
     setTimeout(() => arkaPlanTaramasiYap(tf), 3000);
 });
 
-// Render uyku modunu önlemek için self-ping
 const https = require('https');
 setInterval(() => {
     let url = process.env.RENDER_EXTERNAL_URL || `http://localhost:${PORT}`;
