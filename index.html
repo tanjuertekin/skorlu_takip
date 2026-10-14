@@ -61,8 +61,10 @@
             <select id="timeframeSelect" onchange="zamanDilimiDegistir()">
                 <option value="5m" selected>5 Dakika (5m)</option>
                 <option value="15m">15 Dakika (15m)</option>
+                <option value="30m">30 Dakika (30m)</option>
                 <option value="1h">1 Saat (1h)</option>
                 <option value="4h">4 Saat (4h)</option>
+                <option value="1d">1 Gün (1d)</option>
             </select>
         </div>
 
@@ -77,9 +79,9 @@
         <div class="control-group">
             <label>Minimum Skor (Liste):</label>
             <select id="minScoreSelect" onchange="ekraniGuncelle()">
-                <option value="20" selected>%20 ve Üzeri</option>
-                <option value="50">%50 ve Üzeri</option>
-                <option value="80">%80 ve Üzeri</option>
+                <option value="10" selected>%10 ve Üzeri</option>
+                <option value="20">%20 ve Üzeri</option>
+                <option value="50">%50 and Üzeri</option>
             </select>
         </div>
 
@@ -94,7 +96,6 @@
         <div class="control-group">
             <label>TSL Uzaklığı:</label>
             <select id="tslDistanceSelect">
-                <option value="1.0">%1.0</option>
                 <option value="1.5" selected>%1.5</option>
                 <option value="2.0">%2.0</option>
             </select>
@@ -206,17 +207,19 @@
         let minSkor = parseInt(document.getElementById("minScoreSelect").value);
         let execSkor = parseInt(document.getElementById("execScoreSelect").value);
 
-        document.getElementById("statAcikSayisi").innerText = data.acikIslemler.length;
-        document.getElementById("statKapatilanSayisi").innerText = data.kapatilanIslemler.length;
+        document.getElementById("statAcikSayisi").innerText = data.acikIslemler ? data.acikIslemler.length : 0;
+        document.getElementById("statKapatilanSayisi").innerText = data.kapatilanIslemler ? data.kapatilanIslemler.length : 0;
         
-        let toplamPnl = data.kapatilanIslemler.reduce((acc, curr) => acc + curr.pnlYuzde, 0);
-        let basarili = data.kapatilanIslemler.filter(i => i.pnlYuzde > 0).length;
-        let winRate = data.kapatilanIslemler.length > 0 ? Math.round((basarili / data.kapatilanIslemler.length) * 100) : 0;
+        let kapatilanlar = data.kapatilanIslemler || [];
+        let toplamPnl = kapatilanlar.reduce((acc, curr) => acc + (curr.pnlYuzde || 0), 0);
+        let basarili = kapatilanlar.filter(i => (i.pnlYuzde || 0) > 0).length;
+        let winRate = kapatilanlar.length > 0 ? Math.round((basarili / kapatilanlar.length) * 100) : 0;
         
         document.getElementById("statToplamPnl").innerText = (toplamPnl >= 0 ? "+" : "") + toplamPnl.toFixed(2) + "%";
         document.getElementById("statWinRate").innerText = "%" + winRate;
 
-        let filtrelenmisSonuclar = data.tarananSonuclar.filter(s => s.skor >= minSkor);
+        let tarananlar = data.tarananSonuclar || [];
+        let filtrelenmisSonuclar = tarananlar.filter(s => s.skor >= minSkor);
 
         let taramaHTML = "";
         if (filtrelenmisSonuclar.length === 0) {
@@ -224,64 +227,24 @@
         } else {
             filtrelenmisSonuclar.forEach(s => {
                 let badge = s.yon === "LONG" ? "badge-long" : "badge-short";
-                let islemdeMi = data.acikIslemler.some(i => i.parite === s.parite);
-                let durumMetin = islemdeMi ? '<span style="color:#00ffcc">İşlemde</span>' : `<span style="color:#888">Sadece Liste (<%${execSkor})</span>`;
+                let stochStr = s.stochRsi ? `K:${s.stochRsi.k} D:${s.stochRsi.d}` : "-";
                 taramaHTML += `<tr>
                     <td><b>${s.parite}</b></td>
                     <td><span class="${badge}">${s.yon}</span></td>
                     <td style="color: #00ffcc;">%${s.skor}</td>
-                    <td style="color: #ffaa00;">${s.adx}</td>
-                    <td>K:${s.stochRsi.k} D:${s.stochRsi.d}</td>
+                    <td style="color: #ffaa00;">${s.adx || '-'}</td>
+                    <td>${stochStr}</td>
                     <td>${s.giris}</td>
                     <td style="color: #ff4444;">${s.stop}</td>
-                    <td>${durumMetin}</td>
+                    <td><span style="color:#00ffcc">Listelendi</span></td>
                 </tr>`;
             });
         }
         document.getElementById("tableBody").innerHTML = taramaHTML;
         document.getElementById("sonGuncelleme").innerText = `Son Güncelleme: ${data.lastScanTime || 'Bekleniyor...'}`;
 
-        let acikHTML = "";
-        if (data.acikIslemler.length === 0) {
-            acikHTML = `<tr><td colspan="7" style="color: #888;">Aktif açık işlem bulunmuyor.</td></tr>`;
-        } else {
-            data.acikIslemler.forEach(i => {
-                let pnlRenk = (i.pnlYuzde || 0) >= 0 ? "color: #00ff00;" : "color: #ff4444;";
-                let badge = i.yon === "LONG" ? "badge-long" : "badge-short";
-                acikHTML += `<tr>
-                    <td><b>${i.parite}</b></td>
-                    <td><span class="${badge}">${i.yon}</span></td>
-                    <td>${i.giris}</td>
-                    <td style="color: #fff; font-weight: bold;">${i.anlikFiyat || '-'}</td>
-                    <td style="color: #ff4444;">${i.stop}</td>
-                    <td style="${pnlRenk} font-weight: bold;">%${i.pnlYuzde || '0.00'}</td>
-                    <td style="color: #888;">${i.zaman}</td>
-                </tr>`;
-            });
-        }
-        document.getElementById("activeTradesBody").innerHTML = acikHTML;
-
-        let kapatilanHTML = "";
-        if (data.kapatilanIslemler.length === 0) {
-            kapatilanHTML = `<tr><td colspan="7" style="color: #888;">Henüz kapatılan işlem yok.</td></tr>`;
-        } else {
-            data.kapatilanIslemler.forEach(k => {
-                let pnlRenk = k.pnlYuzde >= 0 ? "color: #00ff00;" : "color: #ff4444;";
-                let badge = k.yon === "LONG" ? "badge-long" : "badge-short";
-                kapatilanHTML += `<tr>
-                    <td><b>${k.parite}</b></td>
-                    <td><span class="${badge}">${k.yon}</span></td>
-                    <td>${k.giris}</td>
-                    <td>${k.cikis}</td>
-                    <td><span style="color:#ffaa00">${k.sonuc}</span></td>
-                    <td style="${pnlRenk} font-weight: bold;">%${k.pnlYuzde}</td>
-                    <td style="color: #888;">${k.kapanisZamani}</td>
-                </tr>`;
-            });
-        }
-        document.getElementById("closedTradesBody").innerHTML = kapatilanHTML;
-
-        document.getElementById("logBox").innerText = data.logs.join("\n");
+        let logBoxText = data.logs ? data.logs.join("\n") : "";
+        document.getElementById("logBox").innerText = logBoxText;
     }
 
     setInterval(verileriCek, 3000);
