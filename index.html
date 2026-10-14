@@ -1,0 +1,389 @@
+﻿<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+    <title>Kripto Canlı İşlem Simülasyon Paneli</title>
+    <style>
+        body {
+            background-color: #121212;
+            color: #e0e0e0;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+        }
+        .container {
+            max-width: 1450px;
+            margin: 0 auto;
+            background: #1e1e1e;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.5);
+        }
+        h2 { 
+            color: #00ffcc; 
+            text-align: center; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+            gap: 10px; 
+            font-size: 20px;
+            word-break: break-word;
+        }
+        .stats-container {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: #252525;
+            padding: 15px;
+            border-radius: 6px;
+            text-align: center;
+            border-left: 4px solid #00ffcc;
+        }
+        .stat-title { font-size: 12px; color: #888; text-transform: uppercase; font-weight: bold; }
+        .stat-value { font-size: 20px; font-weight: bold; color: #fff; margin-top: 5px; }
+
+        .control-panel {
+            background: #2a2a2a;
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 6px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: flex-end;
+        }
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            flex: 1;
+            min-width: 140px;
+        }
+        .button-group { flex: 2; min-width: 220px; }
+        label { font-size: 13px; color: #00ffcc; font-weight: bold; }
+        select, button {
+            background: #181818;
+            color: #fff;
+            border: 1px solid #444;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 14px;
+            width: 100%;
+            box-sizing: border-box;
+        }
+        select { cursor: pointer; }
+        button {
+            background: #00ffcc;
+            color: #121212;
+            font-weight: bold;
+            cursor: pointer;
+            border: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            height: 41px;
+        }
+        button:hover { background: #00b38f; }
+        
+        .section-title {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 25px;
+            margin-bottom: 10px;
+            border-bottom: 2px solid #333;
+            padding-bottom: 8px;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .section-title h3 { margin: 0; color: #00ffcc; font-size: 16px; }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 5px;
+            background: #181818;
+            border-radius: 6px;
+            overflow: hidden;
+        }
+        th, td {
+            padding: 10px;
+            text-align: center;
+            border-bottom: 1px solid #333;
+            font-size: 13px;
+        }
+        th { background-color: #252525; color: #00ffcc; font-weight: bold; }
+        tr:hover { background-color: #222; }
+        
+        .badge-long { color: #00ff00; font-weight: bold; background: rgba(0,255,0,0.1); padding: 3px 6px; border-radius: 4px; }
+        .badge-short { color: #ff4444; font-weight: bold; background: rgba(255,68,68,0.1); padding: 3px 6px; border-radius: 4px; }
+        .badge-durum-aktif { color: #ffaa00; background: rgba(255,170,0,0.1); padding: 3px 6px; border-radius: 4px; font-weight: bold; }
+
+        .log-box {
+            white-space: pre-wrap;
+            background: #181818;
+            padding: 15px;
+            border-radius: 4px;
+            border-left: 4px solid #00ffcc;
+            margin-top: 15px;
+            font-size: 12px;
+            max-height: 120px;
+            overflow-y: auto;
+            color: #aaa;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>Kripto Canlı İşlem Simülasyon Paneli (<span id="tfBaslik">5m</span>)</h2>
+
+    <div class="stats-container">
+        <div class="stat-card">
+            <div class="stat-title">Açık İşlem Sayısı</div>
+            <div class="stat-value" id="statAcikSayisi">0</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-title">Toplam Kapatılan</div>
+            <div class="stat-value" id="statKapatilanSayisi">0</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-title">Toplam Başarı / PnL</div>
+            <div class="stat-value" id="statToplamPnl">%0.00</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-title">Kazanma Oranı (Win Rate)</div>
+            <div class="stat-value" id="statWinRate">%0</div>
+        </div>
+    </div>
+    
+    <!-- Orijinal Kontrol Paneli Alanı Geri Getirildi -->
+    <div class="control-panel">
+        <div class="control-group">
+            <label>Zaman Dilimi (TF):</label>
+            <select id="timeframeSelect" onchange="zamanDilimiDegistir()">
+                <option value="5m" selected>5 Dakika (5m)</option>
+                <option value="15m">15 Dakika (15m)</option>
+                <option value="1h">1 Saat (1h)</option>
+                <option value="4h">4 Saat (4h)</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label>Tarama Aralığı:</label>
+            <select id="intervalSelect">
+                <option value="5" selected>5 Dakika (Otomatik)</option>
+                <option value="15">15 Dakika</option>
+                <option value="30">30 Dakika</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label>Minimum Skor (Liste):</label>
+            <select id="minScoreSelect">
+                <option value="20">%20 ve Üzeri</option>
+                <option value="50" selected>%50 ve Üzeri</option>
+                <option value="80">%80 ve Üzeri</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label>İşlem Açma Eşiği:</label>
+            <select id="execScoreSelect">
+                <option value="60">%60 ve Üzeri</option>
+                <option value="80" selected>%80 ve Üzeri</option>
+                <option value="90">%90 ve Üzeri</option>
+            </select>
+        </div>
+
+        <div class="control-group">
+            <label>TSL Uzaklığı:</label>
+            <select id="tslDistanceSelect">
+                <option value="1.0">%1.0</option>
+                <option value="1.5" selected>%1.5</option>
+                <option value="2.0">%2.0</option>
+            </select>
+        </div>
+
+        <div class="control-group button-group">
+            <label>&nbsp;</label>
+            <button onclick="verileriCek()">Sunucudan Verileri Yenile</button>
+        </div>
+    </div>
+
+    <div class="section-title">
+        <h3>Güncel Sинyal Taraması</h3>
+        <span id="sonGuncelleme" style="font-size: 13px; color: #888;">Son Güncelleme: Bekleniyor...</span>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Parite</th>
+                <th>Yön</th>
+                <th>Skor %</th>
+                <th>ADX</th>
+                <th>StochRSI</th>
+                <th>Giriş</th>
+                <th>Stop</th>
+            </tr>
+        </thead>
+        <tbody id="tableBody">
+            <tr><td colspan="7" style="color: #888;">Yükleniyor...</td></tr>
+        </tbody>
+    </table>
+
+    <div class="section-title">
+        <h3>Canlı Takip Edilen Açık İşlemler (TSL Takipli)</h3>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Parite</th>
+                <th>Yön</th>
+                <th>Giriş Fiyatı</th>
+                <th>Anlık Fiyat</th>
+                <th>Stop Loss</th>
+                <th>Anlık PnL %</th>
+                <th>Açılış Zamanı</th>
+            </tr>
+        </thead>
+        <tbody id="activeTradesBody">
+            <tr><td colspan="7" style="color: #888;">Aktif açık işlem bulunmuyor.</td></tr>
+        </tbody>
+    </table>
+
+    <div class="section-title">
+        <h3>Kapatılan İşlemler Geçmişi</h3>
+    </div>
+    <table>
+        <thead>
+            <tr>
+                <th>Parite</th>
+                <th>Yön</th>
+                <th>Giriş</th>
+                <th>Çıkış</th>
+                <th>Sonuç</th>
+                <th>Kâr / Zarar %</th>
+                <th>Kapanış Zamanı</th>
+            </tr>
+        </thead>
+        <tbody id="closedTradesBody">
+            <tr><td colspan="7" style="color: #888;">Henüz kapatılan işlem yok.</td></tr>
+        </tbody>
+    </table>
+
+    <div class="card" style="margin-top: 20px;">
+        <h3 style="color: #00ffcc; font-size: 15px; margin-bottom: 8px;">Sistem Logları</h3>
+        <div id="logBox" class="log-box">Sunucu bağlantısı bekleniyor...</div>
+    </div>
+</div>
+
+<script>
+    let aktifTf = "5m";
+
+    function zamanDilimiDegistir() {
+        aktifTf = document.getElementById("timeframeSelect").value;
+        document.getElementById("tfBaslik").innerText = aktifTf;
+        verileriCek();
+    }
+
+    async function verileriCek() {
+        try {
+            let minSkor = parseInt(document.getElementById("minScoreSelect").value);
+            let res = await fetch(`/api/state/${aktifTf}`);
+            let data = await res.json();
+            
+            document.getElementById("statAcikSayisi").innerText = data.acikIslemler.length;
+            document.getElementById("statKapatilanSayisi").innerText = data.kapatilanIslemler.length;
+            
+            let toplamPnl = data.kapatilanIslemler.reduce((acc, curr) => acc + curr.pnlYuzde, 0);
+            let basarili = data.kapatilanIslemler.filter(i => i.pnlYuzde > 0).length;
+            let winRate = data.kapatilanIslemler.length > 0 ? Math.round((basarili / data.kapatilanIslemler.length) * 100) : 0;
+            
+            document.getElementById("statToplamPnl").innerText = (toplamPnl >= 0 ? "+" : "") + toplamPnl.toFixed(2) + "%";
+            document.getElementById("statWinRate").innerText = "%" + winRate;
+
+            // Minimum skor filtresine göre sinyalleri filtrele
+            let filtrelenmisSonuclar = data.tarananSonuclar.filter(s => s.skor >= minSkor);
+
+            let taramaHTML = "";
+            if (filtrelenmisSonuclar.length === 0) {
+                taramaHTML = `<tr><td colspan="7" style="color: #888;">Seçilen skor sınırında (%${minSkor}) sinyal bulunamadı.</td></tr>`;
+            } else {
+                filtrelenmisSonuclar.forEach(s => {
+                    let badge = s.yon === "LONG" ? "badge-long" : "badge-short";
+                    taramaHTML += `<tr>
+                        <td><b>${s.parite}</b></td>
+                        <td><span class="${badge}">${s.yon}</span></td>
+                        <td style="color: #00ffcc;">%${s.skor}</td>
+                        <td style="color: #ffaa00;">${s.adx}</td>
+                        <td>K:${s.stochRsi.k} D:${s.stochRsi.d}</td>
+                        <td>${s.giris}</td>
+                        <td style="color: #ff4444;">${s.stop}</td>
+                    </tr>`;
+                });
+            }
+            document.getElementById("tableBody").innerHTML = taramaHTML;
+            document.getElementById("sonGuncelleme").innerText = `Son Güncelleme: ${data.lastScanTime || 'Bekleniyor...'}`;
+
+            // Açık İşlemler
+            let acikHTML = "";
+            if (data.acikIslemler.length === 0) {
+                acikHTML = `<tr><td colspan="7" style="color: #888;">Aktif açık işlem bulunmuyor.</td></tr>`;
+            } else {
+                data.acikIslemler.forEach(i => {
+                    let pnlRenk = (i.pnlYuzde || 0) >= 0 ? "color: #00ff00;" : "color: #ff4444;";
+                    let badge = i.yon === "LONG" ? "badge-long" : "badge-short";
+                    acikHTML += `<tr>
+                        <td><b>${i.parite}</b></td>
+                        <td><span class="${badge}">${i.yon}</span></td>
+                        <td>${i.giris}</td>
+                        <td style="color: #fff; font-weight: bold;">${i.anlikFiyat || '-'}</td>
+                        <td style="color: #ff4444;">${i.stop}</td>
+                        <td style="${pnlRenk} font-weight: bold;">%${i.pnlYuzde || '0.00'}</td>
+                        <td style="color: #888;">${i.zaman}</td>
+                    </tr>`;
+                });
+            }
+            document.getElementById("activeTradesBody").innerHTML = acikHTML;
+
+            // Kapatılan İşlemler
+            let kapatilanHTML = "";
+            if (data.kapatilanIslemler.length === 0) {
+                kapatilanHTML = `<tr><td colspan="7" style="color: #888;">Henüz kapatılan işlem yok.</td></tr>`;
+            } else {
+                data.kapatilanIslemler.forEach(k => {
+                    let pnlRenk = k.pnlYuzde >= 0 ? "color: #00ff00;" : "color: #ff4444;";
+                    let badge = k.yon === "LONG" ? "badge-long" : "badge-short";
+                    kapatilanHTML += `<tr>
+                        <td><b>${k.parite}</b></td>
+                        <td><span class="${badge}">${k.yon}</span></td>
+                        <td>${k.giris}</td>
+                        <td>${k.cikis}</td>
+                        <td><span style="color:#ffaa00">${k.sonuc}</span></td>
+                        <td style="${pnlRenk} font-weight: bold;">%${k.pnlYuzde}</td>
+                        <td style="color: #888;">${k.kapanisZamani}</td>
+                    </tr>`;
+                });
+            }
+            document.getElementById("closedTradesBody").innerHTML = kapatilanHTML;
+
+            document.getElementById("logBox").innerText = data.logs.join("\n");
+
+        } catch (e) {
+            console.error("Veri çekme hatası:", e);
+        }
+    }
+
+    // Her 3 saniyede bir otomatik yenile
+    setInterval(verileriCek, 3000);
+    verileriCek();
+</script>
+
+</body>
+</html>
