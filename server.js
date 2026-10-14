@@ -134,38 +134,36 @@ function calculateBollingerBandwidth(closes, period = 20, multiplier = 2) {
 async function arkaPlanTaramasiYap(tf) {
     let state = botStates[tf];
     try {
-        addLog(tf, "Adım 1: Tarama başlatıldı ve 24hr verisi isteniyor...");
+        addLog(tf, "Tarama başlatıldı (Spot Klines Modu)...");
         
         let res = await fetch('https://api.binance.com/api/v3/ticker/24hr');
-        if (!res.ok) res = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
         let data = await res.json();
         
         if (!Array.isArray(data)) {
-            addLog(tf, "HATA: 24hr verisi dizi formatında gelmedi!");
+            addLog(tf, "Hata: 24hr verisi alınamadı.");
             return;
         }
 
-        let top20 = data.filter(i => i.symbol.endsWith('USDT') && !i.symbol.includes('USDC'))
-            .sort((a,b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume)).slice(0, 5); // Test için ilk 5 parite
-
-        addLog(tf, `Adım 2: Popüler 20'den ilk 5 parite seçildi. Klines verileri çekiliyor...`);
+        let top5 = data.filter(i => i.symbol.endsWith('USDT') && !i.symbol.includes('USDC'))
+            .sort((a,b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume)).slice(0, 5);
 
         let yeniSonuclar = [];
 
-        for (let item of top20) {
+        for (let item of top5) {
             let symbol = item.symbol;
-            let kUrl = `https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${tf}&limit=10`;
+            // Futures yerine Spot klines uç noktasını kullanıyoruz (Render engeline takılmaz)
+            let kUrl = `https://api.binance.com/api/v3/klines?symbol=${symbol}&interval=${tf}&limit=10`;
             
             try {
                 let kRes = await fetch(kUrl);
                 let klines = await kRes.json();
                 
                 if (!Array.isArray(klines) || klines.length < 5) {
-                    addLog(tf, `-> ${symbol}: Klines verisi alınamadı veya dizi değil.`);
+                    addLog(tf, `-> ${symbol}: Spot Klines da dizi dönmedi!`);
                     continue;
                 }
 
-                addLog(tf, `-> ${symbol}: Klines başarıyla alındı (Boyut: ${klines.length}). Listeye ekleniyor...`);
+                addLog(tf, `-> ${symbol}: Spot Klines BAŞARILI! (Mum sayısı: ${klines.length})`);
 
                 let kapanisFiyati = parseFloat(klines[klines.length - 2][4]);
                 
@@ -185,12 +183,24 @@ async function arkaPlanTaramasiYap(tf) {
                 addLog(tf, `-> ${symbol} Hata: ${err.message}`);
             }
 
-            await new Promise(resolve => setTimeout(resolve, 100));
+            await new Promise(resolve => setTimeout(resolve, 150));
         }
 
         state.tarananSonuclar = yeniSonuclar;
         state.lastScanTime = new Date().toLocaleTimeString('tr-TR');
-        addLog(tf, `Adım 3: Tarama bitti. Tabloya yazılan toplam parite: ${yeniSonuclar.length}`);
+        addLog(tf, `Tarama bitti. Başarılı Eklenen Parite: ${yeniSonuclar.length}`);
+
+        yeniSonuclar.forEach(item => {
+            if (!state.acikIslemler.some(i => i.parite === item.parite && i.tf === item.tf)) {
+                state.acikIslemler.push({
+                    ...item,
+                    anlikFiyat: item.giris,
+                    pnlYuzde: 0,
+                    zamanMs: Date.now(),
+                    zaman: new Date().toLocaleTimeString('tr-TR')
+                });
+            }
+        });
 
     } catch (e) {
         addLog(tf, "Kritik Hata: " + e.message);
