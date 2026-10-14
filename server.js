@@ -130,15 +130,19 @@ function calculateBollingerBandwidth(closes, period = 20, multiplier = 2) {
     return bandwidthArray;
 }
 
-// Proxy destekli arkaplan tarama motoru
+// Güvenli Çoklu Kaynak Tarama Motoru
 async function arkaPlanTaramasiYap(tf) {
     let state = botStates[tf];
     try {
         addLog(tf, "Arka plan taraması başlatıldı...");
         
-        let res = await fetch('https://corsproxy.io/?https://fapi.binance.com/fapi/v1/ticker/24hr');
-        let textData = await res.text();
+        // Önce Spot API dener, başarısız olursa Futures API dener
+        let res = await fetch('https://api.binance.com/api/v3/ticker/24hr');
+        if (!res.ok) {
+            res = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
+        }
         
+        let textData = await res.text();
         let data;
         try {
             data = JSON.parse(textData);
@@ -163,7 +167,7 @@ async function arkaPlanTaramasiYap(tf) {
 
         let btcBogaMi = true;
         try {
-            let btcRes = await fetch(`https://corsproxy.io/?https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=${tf}&limit=50`);
+            let btcRes = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=BTCUSDT&interval=${tf}&limit=50`);
             let btcKlines = await btcRes.json();
             if (Array.isArray(btcKlines) && btcKlines.length >= 30) {
                 let btcCloses = btcKlines.map(k => parseFloat(k[4]));
@@ -181,7 +185,7 @@ async function arkaPlanTaramasiYap(tf) {
             let adx = parseFloat((Math.random() * 30 + 15).toFixed(2));
             if (adx < 20) continue;
 
-            let kRes = await fetch(`https://corsproxy.io/?https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${tf}&limit=50`);
+            let kRes = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${symbol}&interval=${tf}&limit=50`);
             let klines = await kRes.json();
             if (!Array.isArray(klines) || klines.length < 35) continue;
 
@@ -255,7 +259,7 @@ async function acikIslemleriTakipEt(tf) {
     let state = botStates[tf];
     if (state.acikIslemler.length === 0) return;
     try {
-        let res = await fetch('https://corsproxy.io/?https://fapi.binance.com/fapi/v1/ticker/price');
+        let res = await fetch('https://fapi.binance.com/fapi/v1/ticker/price');
         let prices = await res.json();
         let pMap = {};
         prices.forEach(p => pMap[p.symbol + '.P'] = parseFloat(p.price));
