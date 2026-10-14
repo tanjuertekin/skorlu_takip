@@ -196,9 +196,13 @@ async function taramaYap(tf) {
     try {
         let state = botStates[tf];
         addLog(tf, "Arka plan taraması başlatıldı...");
+        
         let res = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
         let data = await res.json();
-        if (!Array.isArray(data)) return;
+        if (!Array.isArray(data)) {
+            addLog(tf, "Hata: Binance 24hr verisi dizi formatında gelmedi.");
+            return;
+        }
 
         let top50 = data.filter(item => item.symbol.endsWith('USDT') && !item.symbol.includes('USDC'))
                    .sort((a, b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume))
@@ -206,23 +210,26 @@ async function taramaYap(tf) {
 
         let yeniSonuclar = [];
         for (let parite of top50) {
-            let temizParite = parite.replace('.P', '');
-            let kRes = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${temizParite}&interval=${tf}&limit=100`);
-            let klines = await kRes.json();
-            if (!Array.isArray(klines) || klines.length < 50) continue;
+            try {
+                let temizParite = parite.replace('.P', '');
+                let kRes = await fetch(`https://fapi.binance.com/fapi/v1/klines?symbol=${temizParite}&interval=${tf}&limit=100`);
+                let klines = await kRes.json();
+                if (!Array.isArray(klines) || klines.length < 50) continue;
 
-            let sonuc = safAlgoritmaAnalizi(klines);
-            if (!sonuc) continue;
-            yeniSonuclar.push({ parite, ...sonuc });
+                let sonuc = safAlgoritmaAnalizi(klines);
+                if (!sonuc) continue;
+                yeniSonuclar.push({ parite, ...sonuc });
+            } catch (pariteHata) {
+                // Tek bir parite hata verse bile döngü durmaz
+            }
         }
 
         state.tarananSonuclar = yeniSonuclar;
-        state.lastScanTime = new Date().toLocaleString('tr-TR');
+        state.lastScanTime = new Date().toLocaleTimeString('tr-TR');
         addLog(tf, `Tarama bitti. Bulunan sinyal: ${yeniSonuclar.length}`);
 
-        // Otomatik işlem açma eşiği (%80 ve üzeri varsayılan)
         yeniSonuclar.forEach(item => {
-            if (item.skor >= 80 && !state.acikIslemler.some(i => i.parite === item.parite)) {
+            if (item.skor >= 20 && !state.acikIslemler.some(i => i.parite === item.parite)) {
                 state.acikIslemler.push({
                     id: Date.now() + Math.random(),
                     parite: item.parite,
@@ -232,13 +239,13 @@ async function taramaYap(tf) {
                     enYuksekFiyat: item.giris,
                     tslYuzde: 1.5,
                     acilisZamaniMs: Date.now(),
-                    zaman: new Date().toLocaleString('tr-TR')
+                    zaman: new Date().toLocaleTimeString('tr-TR')
                 });
                 addLog(tf, `[Oto İşlem Açıldı] ${item.parite} (${item.yon})`);
             }
         });
     } catch (e) {
-        addLog(tf, "Tarama Hatası: " + e.message);
+        addLog(tf, "Tarama Kritik Hatası: " + e.message);
     }
 }
 
