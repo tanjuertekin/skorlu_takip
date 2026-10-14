@@ -134,22 +134,21 @@ function calculateBollingerBandwidth(closes, period = 20, multiplier = 2) {
 async function arkaPlanTaramasiYap(tf) {
     let state = botStates[tf];
     try {
-        addLog(tf, "Arka plan taraması başlatıldı (Şartsız Test Modu)...");
+        addLog(tf, "Adım 1: Tarama başlatıldı ve 24hr verisi isteniyor...");
         
         let res = await fetch('https://api.binance.com/api/v3/ticker/24hr');
         if (!res.ok) res = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
         let data = await res.json();
         
         if (!Array.isArray(data)) {
-            addLog(tf, "Hata: Binance verisi alınamadı.");
+            addLog(tf, "HATA: 24hr verisi dizi formatında gelmedi!");
             return;
         }
 
         let top20 = data.filter(i => i.symbol.endsWith('USDT') && !i.symbol.includes('USDC'))
-            .sort((a,b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume)).slice(0, 20);
+            .sort((a,b) => parseFloat(b.quoteVolume) - parseFloat(a.quoteVolume)).slice(0, 5); // Test için ilk 5 parite
 
-        let anlikFiyatlarMap = {};
-        data.forEach(p => anlikFiyatlarMap[p.symbol] = parseFloat(p.lastPrice || p.price));
+        addLog(tf, `Adım 2: Popüler 20'den ilk 5 parite seçildi. Klines verileri çekiliyor...`);
 
         let yeniSonuclar = [];
 
@@ -161,46 +160,40 @@ async function arkaPlanTaramasiYap(tf) {
                 let kRes = await fetch(kUrl);
                 let klines = await kRes.json();
                 
-                if (!Array.isArray(klines) || klines.length < 5) continue;
+                if (!Array.isArray(klines) || klines.length < 5) {
+                    addLog(tf, `-> ${symbol}: Klines verisi alınamadı veya dizi değil.`);
+                    continue;
+                }
+
+                addLog(tf, `-> ${symbol}: Klines başarıyla alındı (Boyut: ${klines.length}). Listeye ekleniyor...`);
 
                 let kapanisFiyati = parseFloat(klines[klines.length - 2][4]);
-                let anlikFiyat = anlikFiyatlarMap[symbol] || kapanisFiyati;
-
-                // Hiçbir şart koşmadan ilk 20 popüler pariteyi doğrudan listeye ekle
+                
                 yeniSonuclar.push({
                     parite: symbol + '.P',
                     yon: "LONG",
                     skor: 90,
                     adx: "45.00",
                     stochRsi: { k: "80.0", d: "70.0" },
-                    giris: parseFloat(anlikFiyat.toFixed(4)),
-                    stop: parseFloat((anlikFiyat * 0.98).toFixed(4)),
-                    tp: parseFloat((anlikFiyat * 1.04).toFixed(4)),
+                    giris: kapanisFiyati,
+                    stop: kapanisFiyati * 0.98,
+                    tp: kapanisFiyati * 1.04,
                     tf
                 });
-            } catch (err) {}
+
+            } catch (err) {
+                addLog(tf, `-> ${symbol} Hata: ${err.message}`);
+            }
 
             await new Promise(resolve => setTimeout(resolve, 100));
         }
 
         state.tarananSonuclar = yeniSonuclar;
         state.lastScanTime = new Date().toLocaleTimeString('tr-TR');
-        addLog(tf, `Tarama tamamlandı. Listelenen Parite: ${yeniSonuclar.length}`);
-
-        yeniSonuclar.forEach(item => {
-            if (!state.acikIslemler.some(i => i.parite === item.parite && i.tf === item.tf)) {
-                state.acikIslemler.push({
-                    ...item,
-                    anlikFiyat: item.giris,
-                    pnlYuzde: 0,
-                    zamanMs: Date.now(),
-                    zaman: new Date().toLocaleTimeString('tr-TR')
-                });
-            }
-        });
+        addLog(tf, `Adım 3: Tarama bitti. Tabloya yazılan toplam parite: ${yeniSonuclar.length}`);
 
     } catch (e) {
-        addLog(tf, "Tarama Hatası: " + e.message);
+        addLog(tf, "Kritik Hata: " + e.message);
     }
 }
 
