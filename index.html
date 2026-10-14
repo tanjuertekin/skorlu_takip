@@ -70,9 +70,11 @@
 
         <div class="control-group">
             <label>Tarama Aralığı:</label>
-            <select id="intervalSelect">
+            <select id="intervalSelect" onchange="otomatikYenilemeAyarla()">
+                <option value="3">3 Dakika</option>
                 <option value="5" selected>5 Dakika (Otomatik)</option>
                 <option value="15">15 Dakika</option>
+                <option value="30">30 Dakika</option>
             </select>
         </div>
 
@@ -81,23 +83,40 @@
             <select id="minScoreSelect" onchange="ekraniGuncelle()">
                 <option value="10" selected>%10 ve Üzeri</option>
                 <option value="20">%20 ve Üzeri</option>
-                <option value="50">%50 and Üzeri</option>
+                <option value="30">%30 ve Üzeri</option>
+                <option value="40">%40 ve Üzeri</option>
+                <option value="50">%50 ve Üzeri</option>
+                <option value="60">%60 ve Üzeri</option>
+                <option value="70">%70 ve Üzeri</option>
+                <option value="80">%80 ve Üzeri</option>
+                <option value="90">%90 ve Üzeri</option>
             </select>
         </div>
 
         <div class="control-group">
             <label>İşlem Açma Eşiği:</label>
-            <select id="execScoreSelect">
-                <option value="80" selected>%80 ve Üzeri</option>
+            <select id="execScoreSelect" onchange="ekraniGuncelle()">
+                <option value="10">%10 ve Üzeri</option>
+                <option value="20">%20 ve Üzeri</option>
+                <option value="30">%30 ve Üzeri</option>
+                <option value="40">%40 ve Üzeri</option>
+                <option value="50">%50 ve Üzeri</option>
                 <option value="60">%60 ve Üzeri</option>
+                <option value="70">%70 ve Üzeri</option>
+                <option value="80" selected>%80 ve Üzeri</option>
+                <option value="90">%90 ve Üzeri</option>
             </select>
         </div>
 
         <div class="control-group">
             <label>TSL Uzaklığı:</label>
             <select id="tslDistanceSelect">
+                <option value="1.0">%1.0</option>
                 <option value="1.5" selected>%1.5</option>
                 <option value="2.0">%2.0</option>
+                <option value="2.5">%2.5</option>
+                <option value="3.0">%3.0</option>
+                <option value="3.5">%3.5</option>
             </select>
         </div>
 
@@ -174,10 +193,21 @@
 <script>
     let aktifTf = "5m";
     let sonSunucuVerisi = null;
+    let otomatikTimer = null;
 
     function zamanDilimiDegistir() {
         aktifTf = document.getElementById("timeframeSelect").value;
-        verileriCek();
+        manuelTaraVerileriCek();
+    }
+
+    function otomatikYenilemeAyarla() {
+        if (otomatikTimer) clearInterval(otomatikTimer);
+        let dakika = parseInt(document.getElementById("intervalSelect").value);
+        if (dakika > 0) {
+            otomatikTimer = setInterval(() => {
+                manuelTaraVerileriCek();
+            }, dakika * 60 * 1000);
+        }
     }
 
     async function verileriCek() {
@@ -247,8 +277,12 @@
         document.getElementById("logBox").innerText = logBoxText;
     }
 
-    setInterval(verileriCek, 3000);
-    verileriCek();
+    // Sayfa açıldığında otomatik tarama tetikle ve periyodik ayarla
+    window.addEventListener('DOMContentLoaded', () => {
+        otomatikYenilemeAyarla();
+        manuelTaraVerileriCek();
+        setInterval(verileriCek, 10000);
+    });
 </script>
 
 </body>
