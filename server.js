@@ -197,10 +197,26 @@ async function taramaYap(tf) {
         let state = botStates[tf];
         addLog(tf, "Arka plan taraması başlatıldı...");
         
-        let res = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
-        let data = await res.json();
+        let res = await fetch('https://api.binance.com/api/v3/ticker/24hr');
+        let data;
+        try {
+            data = await res.json();
+        } catch (err) {
+            data = null;
+        }
+
+        // Eğer Spot API dizi dönmediyse Futures (fapi) yedek adresini dene
         if (!Array.isArray(data)) {
-            addLog(tf, "Hata: Binance 24hr verisi dizi formatında gelmedi.");
+            let resFapi = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
+            try {
+                data = await resFapi.json();
+            } catch (err) {
+                data = [];
+            }
+        }
+
+        if (!Array.isArray(data)) {
+            addLog(tf, "Hata: Binance verisi alınamadı (API engeli veya bağlantı).");
             return;
         }
 
@@ -219,9 +235,7 @@ async function taramaYap(tf) {
                 let sonuc = safAlgoritmaAnalizi(klines);
                 if (!sonuc) continue;
                 yeniSonuclar.push({ parite, ...sonuc });
-            } catch (pariteHata) {
-                // Tek bir parite hata verse bile döngü durmaz
-            }
+            } catch (pariteHata) {}
         }
 
         state.tarananSonuclar = yeniSonuclar;
