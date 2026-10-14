@@ -107,9 +107,14 @@ async function taramaYap(tf) {
         let state = botStates[tf];
         addLog(tf, "Arka plan taraması başlatıldı...");
         
-        let res = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr');
-        let data = await res.json();
+        // Timeout korumalı fetch (Render ağ gecikmelerini aşmak için)
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+        let res = await fetch('https://fapi.binance.com/fapi/v1/ticker/24hr', { signal: controller.signal });
+        clearTimeout(timeoutId);
         
+        let data = await res.json();
         if (!Array.isArray(data)) {
             addLog(tf, "Hata: Binance verisi alınamadı.");
             return;
@@ -163,27 +168,8 @@ async function taramaYap(tf) {
         state.lastScanTime = new Date().toLocaleTimeString('tr-TR');
         addLog(tf, `Tarama bitti. Bulunan sinyal: ${yeniSonuclar.length}`);
 
-        yeniSonuclar.forEach(item => {
-            if (item.skor >= 50 && !state.acikIslemler.some(i => i.parite === item.parite)) {
-                state.acikIslemler.push({
-                    id: Date.now() + Math.random(),
-                    parite: item.parite,
-                    yon: item.yon,
-                    giris: item.giris,
-                    stop: item.stop,
-                    anlikFiyat: item.giris,
-                    enYuksekFiyat: item.giris,
-                    tslYuzde: 1.5,
-                    pnlYuzde: 0,
-                    acilisZamaniMs: Date.now(),
-                    zaman: new Date().toLocaleTimeString('tr-TR')
-                });
-                addLog(tf, `[Oto İşlem] ${item.parite} (${item.yon}) açıldı.`);
-            }
-        });
-
     } catch (e) {
-        addLog(tf, "Tarama Hatası: " + e.message);
+        addLog(tf, "Tarama Hatası (Ağ Zaman Aşımı): " + e.message);
     }
 }
 
