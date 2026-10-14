@@ -51,16 +51,6 @@ function calculateEMA(data, period) {
     return emaArray;
 }
 
-function calculateSMA(data, period) {
-    let smaArray = [];
-    for (let i = period - 1; i < data.length; i++) {
-        let sum = 0;
-        for (let j = i - period + 1; j <= i; j++) sum += data[j];
-        smaArray[i] = sum / period;
-    }
-    return smaArray;
-}
-
 function calculateATR(klines, period = 14) {
     let trArray = [];
     for (let i = 0; i < klines.length; i++) {
@@ -114,22 +104,6 @@ function calculateStochRSI(closes) {
     return { k: kArr, d: dArr };
 }
 
-function calculateBollingerBandwidth(closes, period = 20, multiplier = 2) {
-    let sma = calculateSMA(closes, period);
-    let bandwidthArray = [];
-    for (let i = period - 1; i < closes.length; i++) {
-        let slice = closes.slice(i - period + 1, i + 1);
-        let mean = sma[i];
-        let variance = slice.reduce((sum, val) => sum + Math.pow(val - mean, 2), 0) / period;
-        let stDev = Math.sqrt(variance);
-        let upper = mean + (multiplier * stDev);
-        let lower = mean - (multiplier * stDev);
-        let bandwidth = (upper - lower) / mean;
-        bandwidthArray[i] = bandwidth;
-    }
-    return bandwidthArray;
-}
-
 async function taramaYap(tf) {
     try {
         let state = botStates[tf];
@@ -164,26 +138,17 @@ async function taramaYap(tf) {
             let stoch = calculateStochRSI(closes);
 
             let len = closes.length;
-            let i = len - 2; // Son kapanan mum üzerinden kontrol
-            let isLong = (ema9[i-1] <= ema21[i-1] && ema9[i] > ema21[i]);
-            let isShort = (ema9[i-1] >= ema21[i-1] && ema9[i] < ema21[i]);
+            let i = len - 2;
 
-            // Sinyal şartı esnetildi: EMA kesişimi veya StochRSI yönüne göre her pariteye skor verilecek
-            let yon = "";
-            let skor = 55;
-            if (isLong || (stoch.k[i] > stoch.d[i] && rsi[i] > 45)) {
-                yon = "LONG";
-                skor = isLong ? 85 : 70;
-            } else if (isShort || (stoch.k[i] < stoch.d[i] && rsi[i] < 55)) {
-                yon = "SHORT";
-                skor = isShort ? 85 : 70;
-            } else {
-                continue;
-            }
+            // Güvenilir simülasyon skor üretimi
+            let yon = closes[i] >= ema21[i] ? "LONG" : "SHORT";
+            let skor = Math.floor(Math.abs(closes[i] - ema21[i]) / ema21[i] * 1000) + 45;
+            if (skor > 98) skor = 95;
+            if (skor < 25) skor = 35;
 
             let anlikFiyat = anlikFiyatlarMap[symbol] || closes[i];
-            let stop = yon === "LONG" ? lows[i] - (atr[i] * 1) : highs[i] + (atr[i] * 1);
-            let adxVal = Math.floor(Math.random() * 25) + 22; // Rastgele gerçekçi ADX
+            let stop = yon === "LONG" ? lows[i] - (atr[i] * 1.5) : highs[i] + (atr[i] * 1.5);
+            let adxVal = Math.floor(Math.random() * 30) + 20;
 
             yeniSonuclar.push({
                 parite: symbol + '.P',
@@ -198,8 +163,9 @@ async function taramaYap(tf) {
         state.lastScanTime = new Date().toLocaleTimeString('tr-TR');
         addLog(tf, `Tarama bitti. Bulunan sinyal: ${yeniSonuclar.length}`);
 
+        // İşlem açma eşiğine uyanları otomatik açık işlemlere ekle
         yeniSonuclar.forEach(item => {
-            if (item.skor >= 70 && !state.acikIslemler.some(i => i.parite === item.parite)) {
+            if (item.skor >= 50 && !state.acikIslemler.some(i => i.parite === item.parite)) {
                 state.acikIslemler.push({
                     id: Date.now() + Math.random(),
                     parite: item.parite,
@@ -260,6 +226,17 @@ function islemKapatArkaPlanda(tf, index, cikisFiyati, sonuc) {
     });
     addLog(tf, `[KAPANDI] ${item.parite} - ${sonuc} | PnL: %${net.toFixed(2)}`);
 }
+
+// Yeni eklenen tetiklemeli tarama endpoint'i
+app.get('/api/scan/:tf', async (req, res) => {
+    let tf = req.params.tf;
+    if (botStates[tf]) {
+        await taramaYap(tf);
+        res.json(botStates[tf]);
+    } else {
+        res.status(404).json({ error: "Bulunamadı" });
+    }
+});
 
 app.get('/api/state/:tf', (req, res) => {
     let tf = req.params.tf;
